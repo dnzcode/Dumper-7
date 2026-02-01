@@ -1,4 +1,5 @@
 #include "RemoteProcess.h"
+#include "DriverInterface.h"
 #include <Psapi.h>
 #include <iostream>
 #include <algorithm>
@@ -28,6 +29,7 @@ RemoteProcess::RemoteProcess()
     , m_processId(0)
     , m_mainModuleBase(0)
     , m_mainModuleSize(0)
+    , m_readMode(MemoryReadMode::API)  // Default to API mode
 {
 }
 
@@ -53,27 +55,43 @@ bool RemoteProcess::Attach(DWORD pid)
     // Detach from any existing process first
     Detach();
 
-    // Open the process with necessary permissions
-    m_processHandle = OpenProcess(
-        PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
-        FALSE,
-        pid
-    );
-
-    if (m_processHandle == NULL)
-    {
-        DWORD error = GetLastError();
-        std::cerr << "Failed to open process (PID: " << pid << "). Error: " << error << std::endl;
-        
-        if (error == ERROR_ACCESS_DENIED)
-        {
-            std::cerr << "Access denied. Try running as administrator." << std::endl;
-        }
-        
-        return false;
-    }
-
     m_processId = pid;
+
+    // If driver is available, prefer driver mode
+    if (g_DriverInterface && g_DriverInterface->IsInitialized())
+    {
+        std::cout << "Using driver mode for memory access" << std::endl;
+        m_readMode = MemoryReadMode::Driver;
+        
+        // In driver mode, we don't need a process handle for reading
+        // But we still try to open it for compatibility
+        m_processHandle = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
+    }
+    else
+    {
+        // Use standard API mode
+        m_readMode = MemoryReadMode::API;
+        
+        // Open the process with necessary permissions
+        m_processHandle = OpenProcess(
+            PROCESS_VM_READ | PROCESS_QUERY_INFORMATION,
+            FALSE,
+            pid
+        );
+
+        if (m_processHandle == NULL)
+        {
+            DWORD error = GetLastError();
+            std::cerr << "Failed to open process (PID: " << pid << "). Error: " << error << std::endl;
+            
+            if (error == ERROR_ACCESS_DENIED)
+            {
+                std::cerr << "Access denied. Try running as administrator or using a driver." << std::endl;
+            }
+            
+            return false;
+        }
+    }
 
     // Get process name
     char processName[MAX_PATH] = {};
@@ -145,6 +163,13 @@ bool RemoteProcess::ReadMemory(uintptr_t address, void* buffer, size_t size) con
         return false;
     }
 
+    // Use driver if available and in driver mode
+    if (m_readMode == MemoryReadMode::Driver && g_DriverInterface && g_DriverInterface->IsInitialized())
+    {
+        return g_DriverInterface->ReadMemory(m_processId, address, buffer, size);
+    }
+
+    // Fallback to ReadProcessMemory API
     SIZE_T bytesRead = 0;
     if (!ReadProcessMemory(m_processHandle, reinterpret_cast<LPCVOID>(address), buffer, size, &bytesRead))
     {
@@ -289,6 +314,13 @@ uintptr_t RemoteProcess::GetModuleBase(const char* moduleName) const
         return 0;
     }
 
+    // If driver mode and driver is initialized, use driver
+    if (m_readMode == MemoryReadMode::Driver && g_DriverInterface && g_DriverInterface->IsInitialized())
+    {
+        return g_DriverInterface->GetModuleBase(m_processId, moduleName);
+    }
+
+    // Otherwise use standard API
     // Update cache if empty
     if (m_moduleCache.empty())
     {
@@ -319,6 +351,13 @@ size_t RemoteProcess::GetModuleSize(const char* moduleName) const
         return 0;
     }
 
+    // If driver mode and driver is initialized, use driver
+    if (m_readMode == MemoryReadMode::Driver && g_DriverInterface && g_DriverInterface->IsInitialized())
+    {
+        return g_DriverInterface->GetModuleSize(m_processId, moduleName);
+    }
+
+    // Otherwise use standard API
     // Update cache if empty
     if (m_moduleCache.empty())
     {

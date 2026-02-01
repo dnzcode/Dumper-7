@@ -15,19 +15,32 @@ SDK Generator for all Unreal Engine games. Supported versions are all of UE4 and
   Dumper-7.exe 12345
   ```
 - Alternatively, run without arguments to see an interactive process selection menu
+- **Optional**: Use `--driver` flag to read memory via kernel driver instead of ReadProcessMemory:
+  ```
+  Dumper-7.exe Game.exe --driver \\\\.\\MyDriver
+  ```
 - The SDK is generated into the path specified by `Settings::SDKGenerationPath`, by default this is `C:\\Dumper-7`
 - **Note:** You may need to run as Administrator if the target process has elevated privileges
 - **See [UsingTheSDK](UsingTheSDK.md) for a guide to get started, or to migrate from an old SDK.**
+- **See [DRIVER_USAGE](DRIVER_USAGE.md) for information about kernel driver support.**
 
 ## Command Line Arguments
 
 ```
-Dumper-7.exe <process_name_or_pid>
+Dumper-7.exe <process_name_or_pid> [options]
+
+Arguments:
+  process_name_or_pid    Target process name or PID
+
+Options:
+  --driver <name>        Use kernel driver for memory reading
+                         Example: --driver \\\\.\\MyDriver
 
 Examples:
-  Dumper-7.exe Game-Win64-Shipping.exe    # Attach by process name
-  Dumper-7.exe 12345                       # Attach by PID
-  Dumper-7.exe                            # Interactive mode - shows process list
+  Dumper-7.exe Game-Win64-Shipping.exe           # Attach by process name
+  Dumper-7.exe 12345                              # Attach by PID
+  Dumper-7.exe                                    # Interactive mode - shows process list
+  Dumper-7.exe Game.exe --driver \\\\.\\MyDriver  # Use kernel driver
 ```
 ## Support Me
 

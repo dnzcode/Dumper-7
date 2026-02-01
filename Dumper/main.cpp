@@ -5,6 +5,7 @@
 #include <string>
 
 #include "RemoteProcess.h"
+#include "DriverInterface.h"
 #include "MemoryAccessor.h"
 
 #include "Generators/CppGenerator.h"
@@ -26,12 +27,16 @@ void PrintUsage(const char* programName)
 {
 std::cerr << "Dumper-7 - External Unreal Engine SDK Generator\n\n";
 std::cerr << "Usage:\n";
-std::cerr << "  " << programName << " <process_name_or_pid>\n\n";
+std::cerr << "  " << programName << " <process_name_or_pid> [options]\n\n";
 std::cerr << "Arguments:\n";
 std::cerr << "  process_name_or_pid    Name of the process (e.g., Game.exe) or PID\n\n";
+std::cerr << "Options:\n";
+std::cerr << "  --driver <name>        Use kernel driver for memory reading\n";
+std::cerr << "                         Example: --driver \\\\\\\\.\\\\MyDriver\n\n";
 std::cerr << "Examples:\n";
 std::cerr << "  " << programName << " Game-Win64-Shipping.exe\n";
-std::cerr << "  " << programName << " 12345\n\n";
+std::cerr << "  " << programName << " 12345\n";
+std::cerr << "  " << programName << " Game.exe --driver \\\\\\\\.\\\\MyDriver\n\n";
 }
 
 bool SelectProcess()
@@ -98,35 +103,71 @@ int main(int argc, char* argv[])
 std::cerr << "\n=== Dumper-7 - External SDK Generator ===\n";
 std::cerr << "By me, you & him\n\n";
 
+// Parse command-line arguments
+std::string targetProcess;
+std::string driverName;
+
+for (int i = 1; i < argc; i++)
+{
+std::string arg = argv[i];
+
+if (arg == "--driver" && i + 1 < argc)
+{
+driverName = argv[++i];
+}
+else if (arg == "--help" || arg == "-h")
+{
+PrintUsage(argv[0]);
+return 0;
+}
+else if (targetProcess.empty())
+{
+targetProcess = arg;
+}
+}
+
+// Initialize driver if specified
+if (!driverName.empty())
+{
+std::cerr << "Initializing kernel driver: " << driverName << "\n";
+if (InitDriverInterface(driverName))
+{
+std::cerr << "Driver initialized successfully!\n";
+std::cerr << "Memory will be read via driver IOCTL\n\n";
+}
+else
+{
+std::cerr << "Warning: Failed to initialize driver. Falling back to ReadProcessMemory API.\n\n";
+}
+}
+
 // Initialize remote process
 InitRemoteProcess();
 
 bool attached = false;
 
-// Check for command line arguments
-if (argc > 1)
+// Check for command line target
+if (!targetProcess.empty())
 {
-std::string arg = argv[1];
-
 // Check if it's a PID
 try
 {
-DWORD pid = std::stoul(arg);
+DWORD pid = std::stoul(targetProcess);
 attached = g_RemoteProcess->Attach(pid);
 }
 catch (...)
 {
 // Not a PID, try as process name
-attached = g_RemoteProcess->Attach(arg);
+attached = g_RemoteProcess->Attach(targetProcess);
 }
 }
 
 // If not attached via command line, show selection menu
 if (!attached)
 {
-if (argc > 1)
+if (!targetProcess.empty())
 {
-std::cerr << "Failed to attach to process: " << argv[1] << "\n";
+std::cerr << "Failed to attach to process: " << targetProcess << "\n";
 }
 
 attached = SelectProcess();
@@ -137,8 +178,19 @@ if (!attached)
 std::cerr << "\nFailed to attach to process!\n";
 std::cerr << "Press Enter to exit...";
 std::cin.get();
+ShutdownDriverInterface();
 ShutdownRemoteProcess();
 return 1;
+}
+
+// Display mode information
+if (g_RemoteProcess->IsUsingDriver())
+{
+std::cerr << "\n[MODE] Using Kernel Driver for memory access\n";
+}
+else
+{
+std::cerr << "\n[MODE] Using ReadProcessMemory API for memory access\n";
 }
 
 std::cerr << "\nStarted Generation [Dumper-7]!\n";
@@ -208,6 +260,7 @@ std::cerr << "\n\nGenerating SDK took (" << DumpTime.count() << "ms)\n\n\n";
 std::cerr << "Press Enter to exit...";
 std::cin.get();
 
+ShutdownDriverInterface();
 ShutdownRemoteProcess();
 
 return 0;

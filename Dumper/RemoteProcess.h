@@ -9,10 +9,18 @@
 /**
  * RemoteProcess - Handles external process management and remote memory reading
  * 
- * This class provides an abstraction layer for reading memory from an external process
- * using the Windows API (ReadProcessMemory). It replaces direct memory access that was
- * used when the dumper was injected as a DLL.
+ * This class provides an abstraction layer for reading memory from an external process.
+ * Supports two modes:
+ * 1. ReadProcessMemory API (default) - Standard Windows API
+ * 2. Kernel Driver IOCTL - Custom driver for bypassing protections
  */
+
+enum class MemoryReadMode
+{
+    API,        // Use ReadProcessMemory (default)
+    Driver      // Use kernel driver IOCTL
+};
+
 class RemoteProcess
 {
 public:
@@ -133,6 +141,24 @@ public:
     std::string GetProcessName() const { return m_processName; }
 
     /**
+     * Set the memory reading mode
+     * @param mode The mode to use (API or Driver)
+     */
+    void SetMemoryReadMode(MemoryReadMode mode) { m_readMode = mode; }
+
+    /**
+     * Get the current memory reading mode
+     * @return The current mode
+     */
+    MemoryReadMode GetMemoryReadMode() const { return m_readMode; }
+
+    /**
+     * Check if driver mode is active
+     * @return true if using driver, false if using API
+     */
+    bool IsUsingDriver() const { return m_readMode == MemoryReadMode::Driver; }
+
+    /**
      * List all running processes
      * @return Vector of pairs containing PID and process name
      */
@@ -151,6 +177,7 @@ private:
     std::string m_processName;
     uintptr_t m_mainModuleBase;
     size_t m_mainModuleSize;
+    MemoryReadMode m_readMode;
 
     struct ModuleInfo
     {
