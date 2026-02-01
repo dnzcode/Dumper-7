@@ -5,6 +5,7 @@
 #include <string>
 
 #include "RemoteProcess.h"
+#include "MemoryAccessor.h"
 
 #include "Generators/CppGenerator.h"
 #include "Generators/MappingGenerator.h"
@@ -157,7 +158,11 @@ Generator::InitInternal();
 
 if (Settings::Generator::GameName.empty() && Settings::Generator::GameVersion.empty())
 {
-// Only Possible in Main()
+// ProcessEvent cannot be called in external/remote mode
+// In remote mode, user should set GameName/GameVersion in config file
+if (!MemoryAccessor::IsRemoteMode())
+{
+// Only works in injected DLL mode
 FString Name;
 FString Version;
 UEClass Kismet = ObjectArray::FindClassFast("KismetSystemLibrary");
@@ -169,6 +174,19 @@ Kismet.ProcessEvent(GetEngineVersion, &Version);
 
 Settings::Generator::GameName = Name.ToString();
 Settings::Generator::GameVersion = Version.ToString();
+}
+else
+{
+// Remote mode: Use process name as fallback or require config
+std::cerr << "Note: Running in external mode - ProcessEvent not available\n";
+std::cerr << "Please set GameName and GameVersion in Dumper-7.ini if needed\n";
+
+if (g_RemoteProcess)
+{
+Settings::Generator::GameName = g_RemoteProcess->GetProcessName();
+Settings::Generator::GameVersion = "Unknown";
+}
+}
 }
 
 std::cerr << "GameName: " << Settings::Generator::GameName << "\n";
