@@ -1,0 +1,128 @@
+cmake_minimum_required(VERSION 3.15...4.0)
+
+# Ninja generator does not support platform specification
+if(CMAKE_GENERATOR MATCHES "Ninja")
+    # Remove all variables related to platform
+    unset(CMAKE_GENERATOR_PLATFORM CACHE)
+    unset(CMAKE_GENERATOR_PLATFORM)
+    unset(CMAKE_VS_PLATFORM_NAME CACHE)
+    unset(CMAKE_VS_PLATFORM_NAME)
+    message(STATUS "Using Ninja generator - platform specification disabled")
+endif()
+
+project(Dumper-7 LANGUAGES CXX C)
+
+include(${CMAKE_SOURCE_DIR}/cmake/common.cmake)
+
+# Option to build as external EXE instead of injected DLL
+option(EXTERNAL_MODE "Build as external executable using kernel driver" OFF)
+
+# Source files - automatic search for all source files
+file(GLOB_RECURSE CPP_SOURCES 
+    "Dumper/*.cpp"
+    "Dumper/*.cxx"
+    "Dumper/*.cc"
+    "Dumper/*.c"
+)
+
+# Add driver files if building in external mode
+if(EXTERNAL_MODE)
+    list(APPEND CPP_SOURCES
+        "${CMAKE_SOURCE_DIR}/driver.cpp"
+    )
+    message(STATUS "Building in EXTERNAL_MODE - executable with driver support")
+    
+    # Build as executable
+    add_executable(${PROJECT_NAME} ${CPP_SOURCES})
+    
+    # Add EXTERNAL_MODE define
+    target_compile_definitions(${PROJECT_NAME} PRIVATE EXTERNAL_MODE=1)
+    
+    # Set subsystem to CONSOLE for EXE
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        WIN32_EXECUTABLE FALSE
+        LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+    )
+else()
+    message(STATUS "Building in DLL injection mode")
+    
+    # Build as DLL (original behavior)
+    add_library(${PROJECT_NAME} SHARED ${CPP_SOURCES})
+    
+    set_target_properties(${PROJECT_NAME} PROPERTIES
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
+    )
+endif()
+
+# Include directories
+target_include_directories(${PROJECT_NAME} PRIVATE
+# Root directory for driver.h
+    ${CMAKE_SOURCE_DIR}
+
+# Dumper
+    ${CMAKE_SOURCE_DIR}/Dumper
+
+    # Engine
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Private
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Private/OffsetFinder
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Private/Unreal
+
+    # Engine Public
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Public
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Public/OffsetFinder
+    ${CMAKE_SOURCE_DIR}/Dumper/Engine/Public/Unreal
+
+    # Platform
+    ${CMAKE_SOURCE_DIR}/Dumper/Platform
+    ${CMAKE_SOURCE_DIR}/Dumper/Platform/Public
+    ${CMAKE_SOURCE_DIR}/Dumper/Platform/Private
+
+    # Generator
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Private
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Private/Generators
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Private/Managers
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Private/Wrappers
+
+    # Generator Public
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Public
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Public/Generators
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Public/Managers
+    ${CMAKE_SOURCE_DIR}/Dumper/Generator/Public/Wrappers
+
+    # Utils
+    ${CMAKE_SOURCE_DIR}/Dumper/Utils
+    ${CMAKE_SOURCE_DIR}/Dumper/Utils/Compression
+    ${CMAKE_SOURCE_DIR}/Dumper/Utils/Dumpspace
+    ${CMAKE_SOURCE_DIR}/Dumper/Utils/Encoding
+    ${CMAKE_SOURCE_DIR}/Dumper/Utils/Json
+)
+
+# Compiler definitions
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    $<$<CONFIG:Debug>:_DEBUG>
+    $<$<CONFIG:Release>:NDEBUG>
+    _CONSOLE
+    WIN32
+)
+
+# Common properties
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    VS_GLOBAL_KEYWORD "Win32Proj"
+)
+
+# Print build configuration
+message(STATUS "")
+message(STATUS "========================================")
+message(STATUS "Dumper-7 Build Configuration")
+message(STATUS "========================================")
+message(STATUS "Build Type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "External Mode: ${EXTERNAL_MODE}")
+if(EXTERNAL_MODE)
+    message(STATUS "Output: Dumper-7.exe (external reader)")
+else()
+    message(STATUS "Output: Dumper-7.dll (injection)")
+endif()
+message(STATUS "========================================")
+message(STATUS "")
