@@ -25,7 +25,7 @@ public:
 	// Dereference operator - reads from external memory
 	T operator*() const
 	{
-		if constexpr (Memory::bUseDriverMode)
+		if (Memory::bUseDriverMode)
 			return Memory::Read<T>(m_Address);
 		else
 			return *reinterpret_cast<T*>(m_Address);
@@ -40,7 +40,7 @@ public:
 	// Array access operator
 	T operator[](size_t index) const
 	{
-		if constexpr (Memory::bUseDriverMode)
+		if (Memory::bUseDriverMode)
 			return Memory::Read<T>(m_Address + (index * sizeof(T)));
 		else
 			return reinterpret_cast<T*>(m_Address)[index];

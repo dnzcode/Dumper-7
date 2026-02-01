@@ -188,7 +188,7 @@ After conversion:
 3. Ensure SDK generation completes without crashes
 4. Compare generated SDK with injected mode output
 
-## Troubleshoads
+## Troubleshooting
 
 ### Issue: Driver not found
 - Ensure kernel driver is loaded: `sc query dnzdriver`
