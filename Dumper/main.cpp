@@ -9,6 +9,10 @@
 #include "Generators/DumpspaceGenerator.h"
 
 #include "Generators/Generator.h"
+#include "Platform/Public/MemoryInterface.h"
+
+// Define this to build as external EXE instead of injected DLL
+#define EXTERNAL_MODE 1
 
 enum class EFortToastType : uint8
 {
@@ -26,6 +30,31 @@ DWORD MainThread(HMODULE Module)
 	freopen_s(&Dummy, "CONIN$", "r", stdin);
 
 	std::cerr << "Started Generation [Dumper-7]!\n";
+
+#ifdef EXTERNAL_MODE
+	// External mode: Initialize driver and attach to process
+	std::cerr << "[External Mode] Initializing driver...\n";
+	
+	Memory::bUseDriverMode = true;
+	
+	std::cerr << "Enter target process name (e.g., GameProcess.exe): ";
+	std::string processNameStr;
+	std::getline(std::cin, processNameStr);
+	
+	std::wstring processNameW(processNameStr.begin(), processNameStr.end());
+	
+	if (!Memory::Initialize(processNameW.c_str(), 0))
+	{
+		std::cerr << "[!] Failed to initialize memory interface!\n";
+		std::cerr << "Press any key to exit...\n";
+		std::cin.get();
+		return 1;
+	}
+#else
+	// Injected mode: Use direct memory access
+	Memory::bUseDriverMode = false;
+	Memory::Initialize(nullptr, 0);
+#endif
 
 	Settings::Config::Load();
 
@@ -72,6 +101,20 @@ DWORD MainThread(HMODULE Module)
 
 	std::cerr << "\n\nGenerating SDK took (" << DumpTime.count() << "ms)\n\n\n";
 
+	Memory::Shutdown();
+
+#ifdef EXTERNAL_MODE
+	// External mode: Wait for user input before closing
+	std::cerr << "Press Enter to exit...\n";
+	std::cin.get();
+	
+	fclose(stderr);
+	if (Dummy) fclose(Dummy);
+	FreeConsole();
+	
+	return 0;
+#else
+	// Injected mode: Wait for F6 to unload
 	while (true)
 	{
 		if (GetAsyncKeyState(VK_F6) & 1)
@@ -87,8 +130,17 @@ DWORD MainThread(HMODULE Module)
 	}
 
 	return 0;
+#endif
 }
 
+#ifdef EXTERNAL_MODE
+// External mode: Standard Windows application entry point
+int main(int argc, char* argv[])
+{
+	return MainThread(nullptr);
+}
+#else
+// Injected mode: DLL entry point
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
 {
 	switch (reason)
@@ -100,3 +152,4 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
 
 	return TRUE;
 }
+#endif
