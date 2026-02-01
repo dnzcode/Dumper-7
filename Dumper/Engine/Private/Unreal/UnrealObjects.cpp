@@ -3,6 +3,7 @@
 #include "Unreal/UnrealObjects.h"
 #include "Unreal/ObjectArray.h"
 #include "OffsetFinder/Offsets.h"
+#include "MemoryAccessor.h"
 
 
 void* UEFFieldClass::GetAddress()
@@ -17,22 +18,22 @@ UEFFieldClass::operator bool() const
 
 EFieldClassID UEFFieldClass::GetId() const
 {
-	return *reinterpret_cast<EFieldClassID*>(Class + Off::FFieldClass::Id);
+	return MemoryAccessor::Read<EFieldClassID>(reinterpret_cast<uintptr_t>(Class) + Off::FFieldClass::Id);
 }
 
 EClassCastFlags UEFFieldClass::GetCastFlags() const
 {
-	return *reinterpret_cast<EClassCastFlags*>(Class + Off::FFieldClass::CastFlags);
+	return MemoryAccessor::Read<EClassCastFlags>(reinterpret_cast<uintptr_t>(Class) + Off::FFieldClass::CastFlags);
 }
 
 EClassFlags UEFFieldClass::GetClassFlags() const
 {
-	return *reinterpret_cast<EClassFlags*>(Class + Off::FFieldClass::ClassFlags);
+	return MemoryAccessor::Read<EClassFlags>(reinterpret_cast<uintptr_t>(Class) + Off::FFieldClass::ClassFlags);
 }
 
 UEFFieldClass UEFFieldClass::GetSuper() const
 {
-	return UEFFieldClass(*reinterpret_cast<void**>(Class + Off::FFieldClass::SuperClass));
+	return UEFFieldClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Class) + Off::FFieldClass::SuperClass));
 }
 
 FName UEFFieldClass::GetFName() const
@@ -73,7 +74,7 @@ const void* UEFField::GetAddress() const
 
 EObjectFlags UEFField::GetFlags() const
 {
-	return *reinterpret_cast<EObjectFlags*>(Field + Off::FField::Flags);
+	return MemoryAccessor::Read<EObjectFlags>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Flags);
 }
 
 class UEObject UEFField::GetOwnerAsUObject() const
@@ -81,9 +82,9 @@ class UEObject UEFField::GetOwnerAsUObject() const
 	if (IsOwnerUObject())
 	{
 		if (Settings::Internal::bUseMaskForFieldOwner)
-			return (void*)(*reinterpret_cast<uintptr_t*>(Field + Off::FField::Owner) & ~0x1ull);
+			return (void*)(MemoryAccessor::Read<uintptr_t>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Owner) & ~0x1ull);
 
-		return *reinterpret_cast<void**>(Field + Off::FField::Owner);
+		return MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Owner);
 	}
 
 	return nullptr;
@@ -92,7 +93,7 @@ class UEObject UEFField::GetOwnerAsUObject() const
 class UEFField UEFField::GetOwnerAsFField() const
 {
 	if (!IsOwnerUObject())
-		return *reinterpret_cast<void**>(Field + Off::FField::Owner);
+		return MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Owner);
 
 	return nullptr;
 }
@@ -111,7 +112,7 @@ class UEObject UEFField::GetOwnerUObject() const
 
 UEFFieldClass UEFField::GetClass() const
 {
-	return UEFFieldClass(*reinterpret_cast<void**>(Field + Off::FField::Class));
+	return UEFFieldClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Class));
 }
 
 FName UEFField::GetFName() const
@@ -121,7 +122,7 @@ FName UEFField::GetFName() const
 
 UEFField UEFField::GetNext() const
 {
-	return UEFField(*reinterpret_cast<void**>(Field + Off::FField::Next));
+	return UEFField(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Next));
 }
 
 template<typename UEType>
@@ -134,10 +135,10 @@ bool UEFField::IsOwnerUObject() const
 {
 	if (Settings::Internal::bUseMaskForFieldOwner)
 	{
-		return *reinterpret_cast<uintptr_t*>(Field + Off::FField::Owner) & 0x1;
+		return MemoryAccessor::Read<uintptr_t>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Owner) & 0x1;
 	}
 
-	return *reinterpret_cast<bool*>(Field + Off::FField::Owner + 0x8);
+	return MemoryAccessor::Read<bool>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Owner + 0x8);
 }
 
 bool UEFField::IsA(EClassCastFlags Flags) const
@@ -181,7 +182,7 @@ std::string UEFField::GetCppName() const
 
 UEFField::operator bool() const
 {
-	return Field != nullptr && reinterpret_cast<void*>(Field + Off::FField::Class) != nullptr;
+	return Field != nullptr && MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Field) + Off::FField::Class) != nullptr;
 }
 
 bool UEFField::operator==(const UEFField& Other) const
@@ -208,22 +209,22 @@ const void* UEObject::GetAddress() const
 
 void* UEObject::GetVft() const
 {
-	return *reinterpret_cast<void**>(Object);
+	return MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object));
 }
 
 EObjectFlags UEObject::GetFlags() const
 {
-	return *reinterpret_cast<EObjectFlags*>(Object + Off::UObject::Flags);
+	return MemoryAccessor::Read<EObjectFlags>(reinterpret_cast<uintptr_t>(Object) + Off::UObject::Flags);
 }
 
 int32 UEObject::GetIndex() const
 {
-	return *reinterpret_cast<int32*>(Object + Off::UObject::Index);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Object) + Off::UObject::Index);
 }
 
 UEClass UEObject::GetClass() const
 {
-	return UEClass(*reinterpret_cast<void**>(Object + Off::UObject::Class));
+	return UEClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UObject::Class));
 }
 
 FName UEObject::GetFName() const
@@ -233,7 +234,7 @@ FName UEObject::GetFName() const
 
 UEObject UEObject::GetOuter() const
 {
-	return UEObject(*reinterpret_cast<void**>(Object + Off::UObject::Outer));
+	return UEObject(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UObject::Outer));
 }
 
 int32 UEObject::GetPackageIndex() const
@@ -397,7 +398,7 @@ std::string UEObject::GetPathName() const
 UEObject::operator bool() const
 {
 	// if an object is 0x10000F000 it passes the nullptr check
-	return Object != nullptr && reinterpret_cast<void*>(Object + Off::UObject::Class) != nullptr;
+	return Object != nullptr && MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UObject::Class) != nullptr;
 }
 
 UEObject::operator uint8* ()
@@ -417,12 +418,13 @@ bool UEObject::operator!=(const UEObject& Other) const
 
 void UEObject::ProcessEvent(UEFunction Func, void* Params)
 {
-	void** VFT = *reinterpret_cast<void***>(GetAddress());
+	void* VFT = MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(GetAddress()));
+	void* PEFunc = MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(VFT) + Off::InSDK::ProcessEvent::PEIndex * sizeof(void*));
 
 #if defined(_WIN64)
-	void(*Prd)(void*, void*, void*) = decltype(Prd)(VFT[Off::InSDK::ProcessEvent::PEIndex]);
+	void(*Prd)(void*, void*, void*) = reinterpret_cast<decltype(Prd)>(PEFunc);
 #elif defined(_WIN32)
-	void(__thiscall* Prd)(void*, void*, void*) = decltype(Prd)(VFT[Off::InSDK::ProcessEvent::PEIndex]);
+	void(__thiscall* Prd)(void*, void*, void*) = reinterpret_cast<decltype(Prd)>(PEFunc);
 #endif
 
 	Prd(Object, Func.GetAddress(), Params);
@@ -430,7 +432,7 @@ void UEObject::ProcessEvent(UEFunction Func, void* Params)
 
 UEField UEField::GetNext() const
 {
-	return UEField(*reinterpret_cast<void**>(Object + Off::UField::Next));
+	return UEField(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UField::Next));
 }
 
 bool UEField::IsNextValid() const
@@ -460,9 +462,9 @@ std::vector<std::pair<FName, int64>> UEEnum::GetNameValuePairs() const
 	{
 		std::vector<std::pair<FName, int64>> Ret;
 
-		const uintptr_t TaggedNamesPtr = *reinterpret_cast<uintptr_t*>(Object + EnumNamesOffset);
+		const uintptr_t TaggedNamesPtr = MemoryAccessor::Read<uintptr_t>(Object + EnumNamesOffset);
 		const bool bIsNamesPtrTagged = (TaggedNamesPtr & PointeFlagHasTag) != 0;
-		const uint8* NamesPtr = reinterpret_cast<uint8*>(TaggedNamesPtr & PointerMaskNoTag);
+		const uintptr_t NamesPtr = TaggedNamesPtr & PointerMaskNoTag;
 
 		if (!bIsNamesPtrTagged)
 		{
@@ -472,12 +474,13 @@ std::vector<std::pair<FName, int64>> UEEnum::GetNameValuePairs() const
 			exit(1);
 		}
 
-		const int64* Values = reinterpret_cast<int64*>(*reinterpret_cast<uintptr_t*>(Object + EnumNamesOffset + 0x8) & PointerMaskNoTag);
-		const int32 NumValues = *reinterpret_cast<int32*>(Object + EnumNamesOffset + 0x10);
+		const uintptr_t ValuesPtr = MemoryAccessor::Read<uintptr_t>(Object + EnumNamesOffset + 0x8) & PointerMaskNoTag;
+		const int32 NumValues = MemoryAccessor::Read<int32>(Object + EnumNamesOffset + 0x10);
 
 		for (uint32_t i = 0; i < NumValues; i++)
 		{
-			Ret.push_back({ FName(NamesPtr + (i * FNameSize)), Values[i] });
+			int64 Value = MemoryAccessor::Read<int64>(ValuesPtr + i * sizeof(int64));
+			Ret.push_back({ FName(reinterpret_cast<uint8*>(NamesPtr + (i * FNameSize))), Value });
 		}
 
 		return Ret;
@@ -525,20 +528,22 @@ std::vector<std::pair<FName, int64>> UEEnum::GetNameValuePairs() const
 
 		if (Settings::Internal::bUseCasePreservingName)
 		{
-			SetIsNamesOnlyIfDevsTookCrack(*reinterpret_cast<TArray<TPair<Name16Byte, UInt8As64>>*>(Object + Off::UEnum::Names));
+			TArray<TPair<Name16Byte, UInt8As64>> EnumNames = MemoryAccessor::Read<TArray<TPair<Name16Byte, UInt8As64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names);
+			SetIsNamesOnlyIfDevsTookCrack(EnumNames);
 		}
 		else
 		{
-			SetIsNamesOnlyIfDevsTookCrack(*reinterpret_cast<TArray<TPair<Name08Byte, UInt8As64>>*>(Object + Off::UEnum::Names));
+			TArray<TPair<Name08Byte, UInt8As64>> EnumNames = MemoryAccessor::Read<TArray<TPair<Name08Byte, UInt8As64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names);
+			SetIsNamesOnlyIfDevsTookCrack(EnumNames);
 		}
 	}
 
 	if (Settings::Internal::bIsEnumNameOnly)
 	{
 		if (Settings::Internal::bUseCasePreservingName)
-			return GetNameValuePairs(*reinterpret_cast<TArray<Name16Byte>*>(Object + Off::UEnum::Names));
+			return GetNameValuePairs(MemoryAccessor::Read<TArray<Name16Byte>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 
-		return GetNameValuePairs(*reinterpret_cast<TArray<Name08Byte>*>(Object + Off::UEnum::Names));
+		return GetNameValuePairs(MemoryAccessor::Read<TArray<Name08Byte>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 	}
 	else
 	{
@@ -546,15 +551,15 @@ std::vector<std::pair<FName, int64>> UEEnum::GetNameValuePairs() const
 		if (Settings::Internal::bIsSmallEnumValue)
 		{
 			if (Settings::Internal::bUseCasePreservingName)
-				return GetNameValuePairsWithIndex(*reinterpret_cast<TArray<TPair<Name16Byte, UInt8As64>>*>(Object + Off::UEnum::Names));
+				return GetNameValuePairsWithIndex(MemoryAccessor::Read<TArray<TPair<Name16Byte, UInt8As64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 
-			return GetNameValuePairsWithIndex(*reinterpret_cast<TArray<TPair<Name08Byte, UInt8As64>>*>(Object + Off::UEnum::Names));
+			return GetNameValuePairsWithIndex(MemoryAccessor::Read<TArray<TPair<Name08Byte, UInt8As64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 		}
 
 		if (Settings::Internal::bUseCasePreservingName)
-			return GetNameValuePairsWithIndex(*reinterpret_cast<TArray<TPair<Name16Byte, int64>>*>(Object + Off::UEnum::Names));
+			return GetNameValuePairsWithIndex(MemoryAccessor::Read<TArray<TPair<Name16Byte, int64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 
-		return GetNameValuePairsWithIndex(*reinterpret_cast<TArray<TPair<Name08Byte, int64>>*>(Object + Off::UEnum::Names));
+		return GetNameValuePairsWithIndex(MemoryAccessor::Read<TArray<TPair<Name08Byte, int64>>>(reinterpret_cast<uintptr_t>(Object) + Off::UEnum::Names));
 	}
 }
 
@@ -577,27 +582,27 @@ std::string UEEnum::GetEnumTypeAsStr() const
 
 UEStruct UEStruct::GetSuper() const
 {
-	return UEStruct(*reinterpret_cast<void**>(Object + Off::UStruct::SuperStruct));
+	return UEStruct(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UStruct::SuperStruct));
 }
 
 UEField UEStruct::GetChild() const
 {
-	return UEField(*reinterpret_cast<void**>(Object + Off::UStruct::Children));
+	return UEField(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UStruct::Children));
 }
 
 UEFField UEStruct::GetChildProperties() const
 {
-	return UEFField(*reinterpret_cast<void**>(Object + Off::UStruct::ChildProperties));
+	return UEFField(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UStruct::ChildProperties));
 }
 
 int16 UEStruct::GetMinAlignment() const
 {
-	return *reinterpret_cast<int16*>(Object + Off::UStruct::MinAlignment);
+	return MemoryAccessor::Read<int16>(reinterpret_cast<uintptr_t>(Object) + Off::UStruct::MinAlignment);
 }
 
 int32 UEStruct::GetStructSize() const
 {
-	return *reinterpret_cast<int32*>(Object + Off::UStruct::Size);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Object) + Off::UStruct::Size);
 }
 
 bool UEStruct::HasType(UEStruct Type) const
@@ -704,7 +709,7 @@ bool UEStruct::HasMembers() const
 
 EClassCastFlags UEClass::GetCastFlags() const
 {
-	return *reinterpret_cast<EClassCastFlags*>(Object + Off::UClass::CastFlags);
+	return MemoryAccessor::Read<EClassCastFlags>(reinterpret_cast<uintptr_t>(Object) + Off::UClass::CastFlags);
 }
 
 std::string UEClass::StringifyCastFlags() const
@@ -719,12 +724,12 @@ bool UEClass::IsType(EClassCastFlags TypeFlag) const
 
 UEObject UEClass::GetDefaultObject() const
 {
-	return UEObject(*reinterpret_cast<void**>(Object + Off::UClass::ClassDefaultObject));
+	return UEObject(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UClass::ClassDefaultObject));
 }
 
 TArray<FImplementedInterface> UEClass::GetImplementedInterfaces() const
 {
-	return *reinterpret_cast<TArray<FImplementedInterface>*>(Object + Off::UClass::ImplementedInterfaces);
+	return MemoryAccessor::Read<TArray<FImplementedInterface>>(reinterpret_cast<uintptr_t>(Object) + Off::UClass::ImplementedInterfaces);
 }
 
 UEFunction UEClass::GetFunction(const std::string& ClassName, const std::string& FuncName) const
@@ -749,7 +754,7 @@ UEFunction UEClass::GetFunction(const std::string& ClassName, const std::string&
 
 EFunctionFlags UEFunction::GetFunctionFlags() const
 {
-	return *reinterpret_cast<EFunctionFlags*>(Object + Off::UFunction::FunctionFlags);
+	return MemoryAccessor::Read<EFunctionFlags>(reinterpret_cast<uintptr_t>(Object) + Off::UFunction::FunctionFlags);
 }
 
 bool UEFunction::HasFlags(EFunctionFlags FuncFlags) const
@@ -759,7 +764,7 @@ bool UEFunction::HasFlags(EFunctionFlags FuncFlags) const
 
 void* UEFunction::GetExecFunction() const
 {
-	return *reinterpret_cast<void**>(Object + Off::UFunction::ExecFunction);
+	return MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Object) + Off::UFunction::ExecFunction);
 }
 
 UEProperty UEFunction::GetReturnProperty() const
@@ -836,24 +841,24 @@ FName UEProperty::GetFName() const
 int32 UEProperty::GetArrayDim() const
 {
 	if (Settings::Internal::bUseUint8ArrayDim)
-		return *reinterpret_cast<uint8*>(Base + Off::Property::ArrayDim);
+		return MemoryAccessor::Read<uint8>(reinterpret_cast<uintptr_t>(Base) + Off::Property::ArrayDim);
 
-	return *reinterpret_cast<int32*>(Base + Off::Property::ArrayDim);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Base) + Off::Property::ArrayDim);
 }
 
 int32 UEProperty::GetSize() const
 {
-	return *reinterpret_cast<int32*>(Base + Off::Property::ElementSize);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Base) + Off::Property::ElementSize);
 }
 
 int32 UEProperty::GetOffset() const
 {
-	return *reinterpret_cast<int32*>(Base + Off::Property::Offset_Internal);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Base) + Off::Property::Offset_Internal);
 }
 
 EPropertyFlags UEProperty::GetPropertyFlags() const
 {
-	return *reinterpret_cast<EPropertyFlags*>(Base + Off::Property::PropertyFlags);
+	return MemoryAccessor::Read<EPropertyFlags>(reinterpret_cast<uintptr_t>(Base) + Off::Property::PropertyFlags);
 }
 
 bool UEProperty::HasPropertyFlags(EPropertyFlags PropertyFlag) const
@@ -1194,7 +1199,7 @@ std::string UEProperty::StringifyFlags() const
 
 UEEnum UEByteProperty::GetEnum() const
 {
-	return UEEnum(*reinterpret_cast<void**>(Base + Off::ByteProperty::Enum));
+	return UEEnum(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::ByteProperty::Enum));
 }
 
 std::string UEByteProperty::GetCppType() const
@@ -1209,12 +1214,14 @@ std::string UEByteProperty::GetCppType() const
 
 uint8 UEBoolProperty::GetFieldMask() const
 {
-	return reinterpret_cast<Off::BoolProperty::UBoolPropertyBase*>(Base + Off::BoolProperty::Base)->FieldMask;
+	Off::BoolProperty::UBoolPropertyBase BoolBase = MemoryAccessor::Read<Off::BoolProperty::UBoolPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::BoolProperty::Base);
+	return BoolBase.FieldMask;
 }
 
 uint8 UEBoolProperty::GetByteOffset() const
 {
-	return reinterpret_cast<Off::BoolProperty::UBoolPropertyBase*>(Base + Off::BoolProperty::Base)->ByteOffset;
+	Off::BoolProperty::UBoolPropertyBase BoolBase = MemoryAccessor::Read<Off::BoolProperty::UBoolPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::BoolProperty::Base);
+	return BoolBase.ByteOffset;
 }
 
 uint8 UEBoolProperty::GetBitIndex() const
@@ -1240,7 +1247,8 @@ uint8 UEBoolProperty::GetBitIndex() const
 
 bool UEBoolProperty::IsNativeBool() const
 {
-	return reinterpret_cast<Off::BoolProperty::UBoolPropertyBase*>(Base + Off::BoolProperty::Base)->FieldMask == 0xFF;
+	Off::BoolProperty::UBoolPropertyBase BoolBase = MemoryAccessor::Read<Off::BoolProperty::UBoolPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::BoolProperty::Base);
+	return BoolBase.FieldMask == 0xFF;
 }
 
 std::string UEBoolProperty::GetCppType() const
@@ -1250,7 +1258,7 @@ std::string UEBoolProperty::GetCppType() const
 
 UEClass UEObjectProperty::GetPropertyClass() const
 {
-	return UEClass(*reinterpret_cast<void**>(Base + Off::ObjectProperty::PropertyClass));
+	return UEClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::ObjectProperty::PropertyClass));
 }
 
 std::string UEObjectProperty::GetCppType() const
@@ -1260,7 +1268,7 @@ std::string UEObjectProperty::GetCppType() const
 
 UEClass UEClassProperty::GetMetaClass() const
 {
-	return UEClass(*reinterpret_cast<void**>(Base + Off::ClassProperty::MetaClass));
+	return UEClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::ClassProperty::MetaClass));
 }
 
 std::string UEClassProperty::GetCppType() const
@@ -1295,7 +1303,7 @@ std::string UEInterfaceProperty::GetCppType() const
 
 UEStruct UEStructProperty::GetUnderlayingStruct() const
 {
-	return UEStruct(*reinterpret_cast<void**>(Base + Off::StructProperty::Struct));
+	return UEStruct(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::StructProperty::Struct));
 }
 
 std::string UEStructProperty::GetCppType() const
@@ -1305,7 +1313,7 @@ std::string UEStructProperty::GetCppType() const
 
 UEProperty UEArrayProperty::GetInnerProperty() const
 {
-	return UEProperty(*reinterpret_cast<void**>(Base + Off::ArrayProperty::Inner));
+	return UEProperty(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::ArrayProperty::Inner));
 }
 
 std::string UEArrayProperty::GetCppType() const
@@ -1315,7 +1323,7 @@ std::string UEArrayProperty::GetCppType() const
 
 UEFunction UEDelegateProperty::GetSignatureFunction() const
 {
-	return UEFunction(*reinterpret_cast<void**>(Base + Off::DelegateProperty::SignatureFunction));
+	return UEFunction(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::DelegateProperty::SignatureFunction));
 }
 
 std::string UEDelegateProperty::GetCppType() const
@@ -1326,7 +1334,7 @@ std::string UEDelegateProperty::GetCppType() const
 UEFunction UEMulticastInlineDelegateProperty::GetSignatureFunction() const
 {
 	// Uses "Off::DelegateProperty::SignatureFunction" on purpose
-	return UEFunction(*reinterpret_cast<void**>(Base + Off::DelegateProperty::SignatureFunction));
+	return UEFunction(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::DelegateProperty::SignatureFunction));
 }
 
 std::string UEMulticastInlineDelegateProperty::GetCppType() const
@@ -1336,12 +1344,14 @@ std::string UEMulticastInlineDelegateProperty::GetCppType() const
 
 UEProperty UEMapProperty::GetKeyProperty() const
 {
-	return UEProperty(reinterpret_cast<Off::MapProperty::UMapPropertyBase*>(Base + Off::MapProperty::Base)->KeyProperty);
+	Off::MapProperty::UMapPropertyBase MapBase = MemoryAccessor::Read<Off::MapProperty::UMapPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::MapProperty::Base);
+	return UEProperty(MapBase.KeyProperty);
 }
 
 UEProperty UEMapProperty::GetValueProperty() const
 {
-	return UEProperty(reinterpret_cast<Off::MapProperty::UMapPropertyBase*>(Base + Off::MapProperty::Base)->ValueProperty);
+	Off::MapProperty::UMapPropertyBase MapBase = MemoryAccessor::Read<Off::MapProperty::UMapPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::MapProperty::Base);
+	return UEProperty(MapBase.ValueProperty);
 }
 
 std::string UEMapProperty::GetCppType() const
@@ -1351,7 +1361,7 @@ std::string UEMapProperty::GetCppType() const
 
 UEProperty UESetProperty::GetElementProperty() const
 {
-	return UEProperty(*reinterpret_cast<void**>(Base + Off::SetProperty::ElementProp));
+	return UEProperty(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::SetProperty::ElementProp));
 }
 
 std::string UESetProperty::GetCppType() const
@@ -1361,12 +1371,14 @@ std::string UESetProperty::GetCppType() const
 
 UEProperty UEEnumProperty::GetUnderlayingProperty() const
 {
-	return UEProperty(reinterpret_cast<Off::EnumProperty::UEnumPropertyBase*>(Base + Off::EnumProperty::Base)->UnderlayingProperty);
+	Off::EnumProperty::UEnumPropertyBase EnumBase = MemoryAccessor::Read<Off::EnumProperty::UEnumPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::EnumProperty::Base);
+	return UEProperty(EnumBase.UnderlayingProperty);
 }
 
 UEEnum UEEnumProperty::GetEnum() const
 {
-	return UEEnum(reinterpret_cast<Off::EnumProperty::UEnumPropertyBase*>(Base + Off::EnumProperty::Base)->Enum);
+	Off::EnumProperty::UEnumPropertyBase EnumBase = MemoryAccessor::Read<Off::EnumProperty::UEnumPropertyBase>(reinterpret_cast<uintptr_t>(Base) + Off::EnumProperty::Base);
+	return UEEnum(EnumBase.Enum);
 }
 
 std::string UEEnumProperty::GetCppType() const
@@ -1379,7 +1391,7 @@ std::string UEEnumProperty::GetCppType() const
 
 UEFFieldClass UEFieldPathProperty::GetFieldClass() const
 {
-	return UEFFieldClass(*reinterpret_cast<void**>(Base + Off::FieldPathProperty::FieldClass));
+	return UEFFieldClass(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::FieldPathProperty::FieldClass));
 }
 
 std::string UEFieldPathProperty::GetCppType() const
@@ -1389,7 +1401,7 @@ std::string UEFieldPathProperty::GetCppType() const
 
 UEProperty UEOptionalProperty::GetValueProperty() const
 {
-	return UEProperty(*reinterpret_cast<void**>(Base + Off::OptionalProperty::ValueProperty));
+	return UEProperty(MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(Base) + Off::OptionalProperty::ValueProperty));
 }
 
 std::string UEOptionalProperty::GetCppType() const
