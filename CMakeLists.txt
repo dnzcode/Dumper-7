@@ -22,7 +22,7 @@ file(GLOB_RECURSE CPP_SOURCES
     "Dumper/*.c"
 )
 
-add_library(${PROJECT_NAME} SHARED ${CPP_SOURCES})
+add_executable(${PROJECT_NAME} ${CPP_SOURCES})
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
@@ -71,6 +71,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 
 # Set Windows subsystem
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    WINDOWS_EXPORT_ALL_SYMBOLS ON
     VS_GLOBAL_KEYWORD "Win32Proj"
+    WIN32_EXECUTABLE FALSE  # Console application
 ) 
