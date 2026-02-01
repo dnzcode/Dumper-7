@@ -2,6 +2,8 @@
 #include "TmpUtils.h"
 #include "PlatformWindows.h"
 #include "Arch_x86.h"
+#include "RemoteProcess.h"
+#include "MemoryAccessor.h"
 
 // Private implementation to ensure that there is no accidental usage of platform-specific functions
 namespace
@@ -388,6 +390,11 @@ void* WindowsPrivateImplHelper::FindAlignedValueInAllSectionsImpl(const void* Va
 
 uintptr_t PlatformWindows::GetModuleBase(const char* const ModuleName)
 {
+	if (g_RemoteProcess && g_RemoteProcess->IsAttached())
+	{
+		return g_RemoteProcess->GetModuleBase(ModuleName);
+	}
+
 	if (ModuleName == nullptr)
 		return reinterpret_cast<uintptr_t>(GetPEB()->ImageBaseAddress);
 
@@ -505,6 +512,11 @@ bool PlatformWindows::IsBadReadPtr(const uintptr_t Address)
 }
 bool PlatformWindows::IsBadReadPtr(const void* Address)
 {
+	if (g_RemoteProcess && g_RemoteProcess->IsAttached())
+	{
+		return !MemoryAccessor::IsValidPtr(reinterpret_cast<uintptr_t>(Address));
+	}
+
 	if constexpr (!Is32Bit())
 	{
 		if (!Architecture_x86_64::IsValid64BitVirtualAddress(Address))
