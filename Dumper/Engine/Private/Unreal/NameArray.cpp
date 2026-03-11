@@ -6,6 +6,7 @@
 
 #include "Platform.h"
 #include "Architecture.h"
+#include "MemoryAccessor.h"
 
 uint8* NameArray::GNames = nullptr;
 
@@ -47,12 +48,13 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 		Off::FNameEntry::NamePool::StringOffset = NameEntryStringOffset;
 		Off::FNameEntry::NamePool::HeaderOffset = NameEntryStringOffset == 6 ? 4 : 0;
 
-		const uint8* AssumedBytePropertyEntry = *reinterpret_cast<uint8* const*>(FirstChunkPtr) + NameEntryStringOffset + NoneStrLen;
+		uint8* FirstChunkAddress = MemoryAccessor::Read<uint8*>(reinterpret_cast<uintptr_t>(FirstChunkPtr));
+		const uint8* AssumedBytePropertyEntry = FirstChunkAddress + NameEntryStringOffset + NoneStrLen;
 
 		/* Check if there's pading after an FNameEntry. Check if there's up to 0x4 bytes padding. */
 		for (int i = 0; i < 0x4; i++)
 		{
-			const uint32 FirstPartOfByteProperty = *reinterpret_cast<const uint32*>(AssumedBytePropertyEntry + NameEntryStringOffset);
+			const uint32 FirstPartOfByteProperty = MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(AssumedBytePropertyEntry + NameEntryStringOffset));
 
 			if (FirstPartOfByteProperty == BytePropertyStartAsUint32)
 				break;
@@ -60,7 +62,7 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 			AssumedBytePropertyEntry += 0x1;
 		}
 
-		uint16 BytePropertyHeader = *reinterpret_cast<const uint16*>(AssumedBytePropertyEntry + Off::FNameEntry::NamePool::HeaderOffset);
+		uint16 BytePropertyHeader = MemoryAccessor::Read<uint16>(reinterpret_cast<uintptr_t>(AssumedBytePropertyEntry + Off::FNameEntry::NamePool::HeaderOffset));
 
 		/* Shifiting past the size of the header is not allowed, so limmit the shiftcount here */
 		constexpr int32 MaxAllowedShiftCount = sizeof(BytePropertyHeader) * 0x8;
@@ -80,15 +82,15 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 
 		GetStr = [](uint8* NameEntry) -> std::wstring
 		{
-			const uint16 HeaderWithoutNumber = *reinterpret_cast<uint16*>(NameEntry + Off::FNameEntry::NamePool::HeaderOffset);
+			const uint16 HeaderWithoutNumber = MemoryAccessor::Read<uint16>(reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NamePool::HeaderOffset));
 			const int32 NameLen = HeaderWithoutNumber >> FNameEntry::FNameEntryLengthShiftCount;
 
 			if (NameLen == 0)
 			{
 				const int32 EntryIdOffset = Off::FNameEntry::NamePool::StringOffset + ((Off::FNameEntry::NamePool::StringOffset == 6) * 2);
 
-				const int32 NextEntryIndex = *reinterpret_cast<int32*>(NameEntry + EntryIdOffset);
-				const int32 Number = *reinterpret_cast<int32*>(NameEntry + EntryIdOffset + sizeof(int32));
+				const int32 NextEntryIndex = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NameEntry + EntryIdOffset));
+				const int32 Number = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NameEntry + EntryIdOffset + sizeof(int32)));
 
 				if (Number > 0)
 					return NameArray::GetNameEntry(NextEntryIndex).GetWString() + L'_' + std::to_wstring(Number - 1);
@@ -97,9 +99,15 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 			}
 
 			if (HeaderWithoutNumber & NameWideMask)
-				return std::wstring(reinterpret_cast<const wchar_t*>(NameEntry + Off::FNameEntry::NamePool::StringOffset), NameLen);
+			{
+				std::wstring result(NameLen, L'\0');
+				MemoryAccessor::Read(reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NamePool::StringOffset), result.data(), NameLen * sizeof(wchar_t));
+				return result;
+			}
 
-			return UtfN::StringToWString(std::string(reinterpret_cast<const char*>(NameEntry + Off::FNameEntry::NamePool::StringOffset), NameLen));
+			std::string narrowStr(NameLen, '\0');
+			MemoryAccessor::Read(reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NamePool::StringOffset), narrowStr.data(), NameLen);
+			return UtfN::StringToWString(narrowStr);
 		};
 	}
 	else
@@ -110,7 +118,7 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 
 		for (int i = 0; i < 0x20; i++)
 		{
-			if (*reinterpret_cast<const uint32*>(FNameEntryNone + i) == 'enoN') // None
+			if (MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(FNameEntryNone + i)) == 'enoN') // None
 			{
 				Off::FNameEntry::NameArray::StringOffset = i;
 				break;
@@ -120,8 +128,8 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 		for (int i = 0; i < 0x20; i++)
 		{
 			// lowest bit is bIsWide mask, shift right by 1 to get the index
-			if ((*reinterpret_cast<const uint32*>(FNameEntryIdxThree + i) >> 1) == 0x3 &&
-				(*reinterpret_cast<const uint32*>(FNameEntryIdxEight + i) >> 1) == 0x8)
+			if ((MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(FNameEntryIdxThree + i)) >> 1) == 0x3 &&
+				(MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(FNameEntryIdxEight + i)) >> 1) == 0x8)
 			{
 				Off::FNameEntry::NameArray::IndexOffset = i;
 				break;
@@ -130,13 +138,38 @@ void FNameEntry::Init(const uint8_t* FirstChunkPtr, int64 NameEntryStringOffset)
 
 		GetStr = [](uint8* NameEntry) -> std::wstring
 		{
-			const int32 NameIdx = *reinterpret_cast<int32*>(NameEntry + Off::FNameEntry::NameArray::IndexOffset);
-			const void* NameString = reinterpret_cast<void*>(NameEntry + Off::FNameEntry::NameArray::StringOffset);
+			const int32 NameIdx = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NameArray::IndexOffset));
 
 			if (NameIdx & NameWideMask)
-				return std::wstring(reinterpret_cast<const wchar_t*>(NameString));
+			{
+				// Read wide string
+				std::wstring result;
+				uintptr_t strAddr = reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NameArray::StringOffset);
+				wchar_t wc;
+				while (true)
+				{
+					wc = MemoryAccessor::Read<wchar_t>(strAddr);
+					if (wc == L'\0')
+						break;
+					result += wc;
+					strAddr += sizeof(wchar_t);
+				}
+				return result;
+			}
 
-			return UtfN::StringToWString<std::string>(reinterpret_cast<const char*>(NameString));
+			// Read narrow string
+			std::string narrowStr;
+			uintptr_t strAddr = reinterpret_cast<uintptr_t>(NameEntry + Off::FNameEntry::NameArray::StringOffset);
+			char c;
+			while (true)
+			{
+				c = MemoryAccessor::Read<char>(strAddr);
+				if (c == '\0')
+					break;
+				narrowStr += c;
+				strAddr += sizeof(char);
+			}
+			return UtfN::StringToWString<std::string>(narrowStr);
 		};
 	}
 }
@@ -153,7 +186,7 @@ bool NameArray::InitializeNameArray(uint8_t* NameArray)
 
 	for (int i = 0; i < 0x800; i += sizeof(void*))
 	{
-		uint8_t* SomePtr = *reinterpret_cast<uint8_t**>(NameArray + i);
+		uint8_t* SomePtr = MemoryAccessor::Read<uint8_t*>(reinterpret_cast<uintptr_t>(NameArray + i));
 
 		if (SomePtr == 0)
 		{
@@ -165,8 +198,8 @@ bool NameArray::InitializeNameArray(uint8_t* NameArray)
 		}
 		else if (ZeroQWordCount > 0 && SomePtr != 0)
 		{
-			int32 NumElements = *reinterpret_cast<int32_t*>(NameArray + i);
-			int32 NumChunks = *reinterpret_cast<int32_t*>(NameArray + i + 4);
+			int32 NumElements = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NameArray + i));
+			int32 NumChunks = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NameArray + i + 4));
 
 			if (NumChunks == ValidPtrCount)
 			{
@@ -181,7 +214,13 @@ bool NameArray::InitializeNameArray(uint8_t* NameArray)
 					if (ComparisonIndex > NameArray::GetNumElements())
 						return nullptr;
 
-					return reinterpret_cast<void***>(NamesArray)[ChunkIdx][InChunk];
+					// Read chunk pointer
+					uint8_t* ChunkPtr = MemoryAccessor::Read<uint8_t*>(reinterpret_cast<uintptr_t>(NamesArray) + ChunkIdx * sizeof(void*));
+					if (!ChunkPtr)
+						return nullptr;
+
+					// Read entry pointer from chunk
+					return MemoryAccessor::Read<void*>(reinterpret_cast<uintptr_t>(ChunkPtr) + InChunk * sizeof(void*));
 				};
 
 				return true;
@@ -203,7 +242,7 @@ bool NameArray::InitializeNamePool(uint8_t* NamePool)
 
 	for (int i = 0x0; i < 0x20; i += 4)
 	{
-		const int32 PossibleMaxChunkIdx = *reinterpret_cast<int32*>(NamePool + i);
+		const int32 PossibleMaxChunkIdx = MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(NamePool + i));
 
 		if (PossibleMaxChunkIdx <= 0 || PossibleMaxChunkIdx > 0x10000)
 			continue;
@@ -219,7 +258,7 @@ bool NameArray::InitializeNamePool(uint8_t* NamePool)
 		{
 			const int32 ChunkOffset = i + 8 + j + (i % 8);
 
-			if ((*reinterpret_cast<uint8_t**>(NamePool + ChunkOffset)) != nullptr)
+			if (MemoryAccessor::Read<uint8_t*>(reinterpret_cast<uintptr_t>(NamePool + ChunkOffset)) != nullptr)
 			{
 				NotNullptrCount++;
 				NumPtrsSinceLastValid = 0;
@@ -255,7 +294,7 @@ bool NameArray::InitializeNamePool(uint8_t* NamePool)
 	constexpr uint64 CoreUObjAsUint64 = 0x6A624F5565726F43; // little endian "jbOUeroC" ["/Script/CoreUObject"]
 	constexpr uint32 NoneAsUint32 = 0x656E6F4E; // little endian "None"
 
-	uint8_t** ChunkPtr = reinterpret_cast<uint8_t**>(NamePool + Off::NameArray::ChunksStart);
+	uint8_t* ChunkPtr = MemoryAccessor::Read<uint8_t*>(reinterpret_cast<uintptr_t>(NamePool + Off::NameArray::ChunksStart));
 
 	// "/Script/CoreUObject"
 	bool bFoundCoreUObjectString = false;
@@ -265,11 +304,11 @@ bool NameArray::InitializeNamePool(uint8_t* NamePool)
 
 	for (int i = 0; i < LoopLimit; i++)
 	{
-		if (*reinterpret_cast<uint32*>(*ChunkPtr + i) == NoneAsUint32 && FNameEntryHeaderSize == 0)
+		if (MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(ChunkPtr + i)) == NoneAsUint32 && FNameEntryHeaderSize == 0)
 		{
 			FNameEntryHeaderSize = i;
 		}
-		else if (*reinterpret_cast<uint64*>(*ChunkPtr + i) == CoreUObjAsUint64)
+		else if (MemoryAccessor::Read<uint64>(reinterpret_cast<uintptr_t>(ChunkPtr + i)) == CoreUObjAsUint64)
 		{
 			bFoundCoreUObjectString = true;
 			break;
@@ -292,13 +331,17 @@ bool NameArray::InitializeNamePool(uint8_t* NamePool)
 		if (ChunkIdx < 0 || ChunkIdx > GetNumChunks() || bIsBeyondLastChunk)
 			return nullptr;
 
-		uint8_t* ChunkPtr = reinterpret_cast<uint8_t*>(NamesArray) + 0x10;
+		uint8_t* ChunkPtrAddress = reinterpret_cast<uint8_t*>(NamesArray) + 0x10;
 
-		return reinterpret_cast<uint8_t**>(ChunkPtr)[ChunkIdx] + InChunkOffset;
+		// Read the chunk pointer from the chunk pointer array
+		uint8_t* ChunkPtr = MemoryAccessor::Read<uint8_t*>(reinterpret_cast<uintptr_t>(ChunkPtrAddress) + ChunkIdx * sizeof(uint8_t*));
+
+		return ChunkPtr + InChunkOffset;
 	};
 
 	Settings::Internal::bUseNamePool = true;
-	FNameEntry::Init(reinterpret_cast<uint8*>(ChunkPtr), FNameEntryHeaderSize);
+	// Pass the address in the NamePool where the chunk pointer is stored
+	FNameEntry::Init(reinterpret_cast<uint8*>(NamePool + Off::NameArray::ChunksStart), FNameEntryHeaderSize);
 
 	return true;
 }
@@ -344,7 +387,7 @@ inline std::pair<uintptr_t, bool> FindFNameGetNamesOrGNames_Windows(const uintpt
 		const uintptr_t InstructionAfterCall = reinterpret_cast<uintptr_t>(BytePropertyStringAddress - (i - ASMRelativeCallSizeBytes));
 		
 		/* Check if we're dealing with a 'call' opcode */
-		if (*reinterpret_cast<const uint8*>(InstructionAfterCall) == 0xE8)
+		if (MemoryAccessor::Read<uint8>(InstructionAfterCall) == 0xE8)
 			return { Architecture_x86_64::Resolve32BitRelativeCall(InstructionAfterCall), false };
 
 		// Looks like on 32bit like literally everything is absolute???? fuck you
@@ -380,7 +423,7 @@ bool NameArray::TryFindNameArray_Windows()
 
 	if (bIsGNamesDirectly)
 	{
-		if (!Platform::IsAddressInProcessRange(Address) || Platform::IsBadReadPtr(*reinterpret_cast<void**>(Address)))
+		if (!Platform::IsAddressInProcessRange(Address) || Platform::IsBadReadPtr(MemoryAccessor::Read<void*>(Address)))
 			return false;
 
 		Off::InSDK::NameArray::GNames = Platform::GetOffset(Address);
@@ -395,7 +438,7 @@ bool NameArray::TryFindNameArray_Windows()
 	for (int i = 0; i < GetNamesCallSearchRange; i++)
 	{
 		/* Check upwards (yes negative indexing) for a relative call opcode */
-		if (*reinterpret_cast<const uint16*>(Address + i) != 0x8B48)
+		if (MemoryAccessor::Read<uint16>(Address + i) != 0x8B48)
 			continue;
 
 		const uintptr_t MoveTarget = Architecture_x86_64::Resolve32BitRelativeMove(Address + i);
@@ -403,7 +446,7 @@ bool NameArray::TryFindNameArray_Windows()
 		if (!Platform::IsAddressInProcessRange(MoveTarget))
 			continue;
 
-		const void* ValueOfMoveTargetAsPtr = *reinterpret_cast<void**>(MoveTarget);
+		const void* ValueOfMoveTargetAsPtr = MemoryAccessor::Read<void*>(MoveTarget);
 
 		if (Platform::IsBadReadPtr(ValueOfMoveTargetAsPtr) || ValueOfMoveTargetAsPtr != Names)
 			continue;
@@ -462,7 +505,7 @@ bool NameArray::TryFindNamePool_Windows()
 		for (int i = 0; i < InitSRWLockSearchRange; i++)
 		{
 			/* Check for a relative call with the opcodes FF 15 00 00 00 00 */
-			if (*reinterpret_cast<uint16*>(PossibleConstructorAddress + i) != 0x15FF)
+			if (MemoryAccessor::Read<uint16>(PossibleConstructorAddress + i) != 0x15FF)
 				continue;
 
 			const uintptr_t RelativeCallTarget = Architecture_x86_64::Resolve32BitSectionRelativeCall(PossibleConstructorAddress + i);
@@ -470,7 +513,7 @@ bool NameArray::TryFindNamePool_Windows()
 			if (!Platform::IsAddressInProcessRange(RelativeCallTarget))
 				continue;
 
-			const uintptr_t ValueOfCallTarget = *reinterpret_cast<uintptr_t*>(RelativeCallTarget);
+			const uintptr_t ValueOfCallTarget = MemoryAccessor::Read<uintptr_t>(RelativeCallTarget);
 
 			if (ValueOfCallTarget != InitSRWLockAddress && ValueOfCallTarget != RtlInitSRWLockAddress)
 				continue;
@@ -513,7 +556,7 @@ bool NameArray::TryInit(bool bIsTestOnly)
 	if (CALL_PLATFORM_SPECIFIC_FUNCTION(NameArray::TryFindNameArray))
 	{
 		std::cerr << std::format("Found 'TNameEntryArray GNames' at offset 0x{:X}\n", Off::InSDK::NameArray::GNames) << std::endl;
-		GNamesAddress = *reinterpret_cast<uint8**>(ImageBase + Off::InSDK::NameArray::GNames);// Derefernce
+		GNamesAddress = MemoryAccessor::Read<uint8*>(ImageBase + Off::InSDK::NameArray::GNames);// Derefernce
 		Settings::Internal::bUseNamePool = false;
 		bFoundNameArray = true;
 	}
@@ -572,7 +615,7 @@ bool NameArray::TryInit(int32 OffsetOverride, bool bIsNamePool, const char* cons
 	if (bIsNameArrayOverride)
 	{
 		std::cerr << std::format("Overwrote offset: 'TNameEntryArray GNames' set as offset 0x{:X}\n", Off::InSDK::NameArray::GNames) << std::endl;
-		GNamesAddress = *reinterpret_cast<uint8**>(ImageBase + Off::InSDK::NameArray::GNames);// Derefernce
+		GNamesAddress = MemoryAccessor::Read<uint8*>(ImageBase + Off::InSDK::NameArray::GNames);// Derefernce
 		Settings::Internal::bUseNamePool = false;
 		bFoundNameArray = true;
 	}
@@ -675,17 +718,17 @@ void NameArray::PostInit()
 
 int32 NameArray::GetNumChunks()
 {
-	return *reinterpret_cast<int32*>(GNames + Off::NameArray::MaxChunkIndex);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(GNames + Off::NameArray::MaxChunkIndex));
 }
 
 int32 NameArray::GetNumElements()
 {
-	return !Settings::Internal::bUseNamePool ? *reinterpret_cast<int32*>(GNames + Off::NameArray::NumElements) : 0;
+	return !Settings::Internal::bUseNamePool ? MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(GNames + Off::NameArray::NumElements)) : 0;
 }
 
 int32 NameArray::GetByteCursor()
 {
-	return Settings::Internal::bUseNamePool ? *reinterpret_cast<int32*>(GNames + Off::NameArray::ByteCursor) : 0;
+	return Settings::Internal::bUseNamePool ? MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(GNames + Off::NameArray::ByteCursor)) : 0;
 }
 
 FNameEntry NameArray::GetNameEntry(const void* Name)

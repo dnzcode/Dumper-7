@@ -3,7 +3,7 @@ add_rules("mode.debug", "mode.release")
 set_languages("c++latest", "clatest")
 
 target("Dumper-7")
-    set_kind("shared")
+    set_kind("binary")
 
     add_files("Dumper/**.cpp")
     add_files("Dumper/**.c")

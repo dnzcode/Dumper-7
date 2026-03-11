@@ -7,6 +7,7 @@
 #include "Encoding/UnicodeNames.h"
 
 #include "Architecture.h"
+#include "MemoryAccessor.h"
 
 
 std::string MakeNameValid(std::wstring&& Name)
@@ -358,7 +359,7 @@ std::string FName::ToValidString() const
 
 int32 FName::GetCompIdx() const 
 {
-	return *reinterpret_cast<const int32*>(Address + Off::FName::CompIdx);
+	return MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Address + Off::FName::CompIdx));
 }
 
 uint32 FName::GetNumber() const
@@ -367,9 +368,9 @@ uint32 FName::GetNumber() const
 		return 0x0;
 
 	if (Settings::Internal::bUseNamePool)
-		return *reinterpret_cast<const uint32*>(Address + Off::FName::Number); // The number is uint32 on versions <= UE4.23 
+		return MemoryAccessor::Read<uint32>(reinterpret_cast<uintptr_t>(Address + Off::FName::Number)); // The number is uint32 on versions <= UE4.23 
 
-	return static_cast<uint32_t>(*reinterpret_cast<const int32*>(Address + Off::FName::Number));
+	return static_cast<uint32_t>(MemoryAccessor::Read<int32>(reinterpret_cast<uintptr_t>(Address + Off::FName::Number)));
 }
 
 bool FName::operator==(FName Other) const
